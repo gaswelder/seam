@@ -15,6 +15,7 @@ import (
 func main() {
 	keyFile := flag.String("k", "", "keyfile path")
 	certFile := flag.String("c", "", "certfile path")
+	port := flag.Int("p", 0, "port")
 	flag.Parse()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -50,11 +51,17 @@ func main() {
 	}
 
 	if *keyFile != "" {
-		log.Println("running HTTPS on port 443")
-		log.Fatal(http.ListenAndServeTLS(":443", *certFile, *keyFile, nil))
+		if *port == 0 {
+			*port = 443
+		}
+		log.Printf("running HTTPS on port %d", *port)
+		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%d", *port), *certFile, *keyFile, nil))
 	} else {
-		log.Println("http://localhost:20219")
-		log.Fatal(http.ListenAndServe("localhost:20219", nil))
+		if *port == 0 {
+			*port = 20219
+		}
+		log.Printf("running HTTP on port %d", *port)
+		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 	}
 }
 
