@@ -33,18 +33,24 @@ func main() {
 			continue
 		}
 		parts := strings.Split(s, " ")
-		if len(parts) != 3 {
+		if len(parts) < 3 {
 			log.Fatal("counld't parse line:", line)
 		}
 		switch parts[1] {
 		case "static":
+			fmt.Println("static", parts[0], parts[2])
 			http.HandleFunc(parts[0], static(parts[2]))
 		case "forward":
 			port, err := strconv.Atoi(parts[2])
 			if err != nil {
 				log.Fatal("faied to parse port", err)
 			}
-			http.HandleFunc(parts[0], forward(port))
+			auth := ""
+			if len(parts) > 3 {
+				auth = parts[3]
+			}
+			fmt.Println("forward", parts[0], port, auth)
+			http.HandleFunc(parts[0], forward(port, auth))
 		default:
 			log.Fatal("unknown handler:", parts[1])
 		}
@@ -90,8 +96,25 @@ func static(dir string) http.HandlerFunc {
 	}
 }
 
-func forward(port int) http.HandlerFunc {
+func forward(port int, auth string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if auth != "" {
+			username, password, ok := r.BasicAuth()
+			if !ok {
+				w.Header().Add("WWW-Authenticate", `Basic realm="seam"`)
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`Enter username and password`))
+				return
+			}
+			fmt.Println(auth, username, password)
+			if fmt.Sprintf("%s:%s", username, password) != auth {
+				w.Header().Add("WWW-Authenticate", `Basic realm="seam"`)
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`Incorrect username/password`))
+				return
+			}
+		}
+
 		// Figure out the target URL
 		parts := strings.Split(r.URL.Path, "/")[2:]
 		targetURL := *r.URL
@@ -110,6 +133,7 @@ func forward(port int) http.HandlerFunc {
 		if err != nil {
 			log.Println(r.RequestURI, "failed:", err)
 			http.Error(w, err.Error(), 500)
+			return
 		}
 
 		// Write the results
