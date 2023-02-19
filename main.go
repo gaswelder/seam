@@ -121,7 +121,7 @@ func forward(port int, auth string) http.HandlerFunc {
 		targetURL.Path = strings.Join(parts, "/")
 		targetURL.Scheme = "http"
 		targetURL.Host = fmt.Sprintf("localhost:%d", port)
-		log.Printf("@ %s %s -> %s", r.Method, r.URL.Path, targetURL.String())
+		log.Printf("forwarding %s %s -> %s", r.Method, r.URL.Path, targetURL.String())
 
 		// Do the target request
 		subreq, err := http.NewRequest(r.Method, targetURL.String(), nil)
@@ -129,6 +129,11 @@ func forward(port int, auth string) http.HandlerFunc {
 			log.Println(r.RequestURI, "failed:", err)
 			http.Error(w, err.Error(), 500)
 		}
+		for k, v := range r.Header {
+			fmt.Println("forwarding", k, "=", v)
+			subreq.Header[k] = v
+		}
+		subreq.Body = r.Body
 		resp, err := http.DefaultClient.Do(subreq)
 		if err != nil {
 			log.Println(r.RequestURI, "failed:", err)
@@ -136,8 +141,14 @@ func forward(port int, auth string) http.HandlerFunc {
 			return
 		}
 
+		fmt.Println("got", resp.StatusCode)
+
 		// Write the results
-		w.Header().Add("Content-Type", resp.Header.Get("content-type"))
+		// w.Header().Add("Content-Type", resp.Header.Get("content-type"))
+		for k, v := range resp.Header {
+			fmt.Println("forwarding back", k, v)
+			w.Header()[k] = v
+		}
 		w.WriteHeader(resp.StatusCode)
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
