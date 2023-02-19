@@ -130,8 +130,33 @@ func forward(port int, auth string) http.HandlerFunc {
 			http.Error(w, err.Error(), 500)
 		}
 		for k, v := range r.Header {
-			fmt.Println("forwarding", k, "=", v)
-			subreq.Header[k] = v
+			switch k {
+			case
+				// normal heaaders
+				"Accept",
+				"Accept-Encoding",
+				"Accept-Language",
+				"Cache-Control",
+				"Connection",
+				"Content-Length",
+				"Content-Type",
+				"Cookie",
+				"Pragma",
+				"User-Agent",
+				// fetch metadata
+				"Sec-Fetch-Mode",
+				"Sec-Fetch-Site",
+				"Sec-Fetch-Dest",
+				"Sec-Fetch-User",
+				// possibly problematic
+				"Origin",
+				"Referer",
+				"Upgrade-Insecure-Requests":
+				subreq.Header[k] = v
+			default:
+				log.Printf("unknown request header: %s\n", k)
+			}
+
 		}
 		subreq.Body = r.Body
 		resp, err := http.DefaultClient.Do(subreq)
@@ -144,10 +169,25 @@ func forward(port int, auth string) http.HandlerFunc {
 		fmt.Println("got", resp.StatusCode)
 
 		// Write the results
-		// w.Header().Add("Content-Type", resp.Header.Get("content-type"))
 		for k, v := range resp.Header {
-			fmt.Println("forwarding back", k, v)
-			w.Header()[k] = v
+			switch k {
+			case
+				// response fields of a CORS preflight
+				"Access-Control-Allow-Credentials",
+				"Access-Control-Allow-Headers",
+				"Access-Control-Allow-Origin",
+				// normal headers
+				"Content-Length",
+				"Content-Type",
+				"Date",
+				// rubbish
+				"X-Powered-By",
+				// possibly problematic
+				"Host":
+				w.Header()[k] = v
+			default:
+				log.Printf("unknown response header: %s\n", k)
+			}
 		}
 		w.WriteHeader(resp.StatusCode)
 		_, err = io.Copy(w, resp.Body)
